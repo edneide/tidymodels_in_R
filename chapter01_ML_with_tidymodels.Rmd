@@ -1,0 +1,93 @@
+---
+title: "Modeling with tidymodels in R - DataCamp"
+author: "Edneide Ramalho"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+output:
+  html_document:
+    highlight: textmate
+    logo: logo.png
+    theme: jou
+    number_sections: yes
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
+    df_print: paged
+  word_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("img/tidymodels.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px;',
+               width = "200",
+               heigth = "200")
+```
+
+# Tracks for this course
+
+-   Machine Learning Fundamentals in R
+
+-   Machine Learning Scientist with R
+
+-   Supervised Machine Learning in R
+
+# Imports
+
+```{r packages}
+library(tidyverse)
+library(tidymodels)
+```
+
+# The tidymodels ecosystem
+
+## Collection of machine learning packages
+
+-   Data resampling: `rsample`
+
+-   Feature engineering: `recipes`
+
+-   Model fitting: `parsnip`
+
+-   Model Tuning: `tune` e `dials`
+
+-   Model evaluation: `yardstick`
+
+## Data resampling 
+
+Create training and tests sets
+
+-   Guards against **overfitting**
+
+-   Common ratio
+
+    -   75% training
+
+    -   25% test
+
+**Training data**
+
+-   Feature engineering
+
+-   Model fitting and tunning
+
+**Test data**
+
+-   Estimate model performance on new data
+
+## Fuel efficiency data
+
+-   Dataset: `mpg`
+
+-   Outcome variable: `hwy` (highway fuel efficiency in miles per gallon - mpg)
+
+```{r data}
+glimpse(mpg)
+```
+
+## Data resampling with tidymodels
