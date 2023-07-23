@@ -91,3 +91,354 @@ glimpse(mpg)
 ```
 
 ## Data resampling with tidymodels
+
+```{r}
+mpg_split <- initial_split(mpg, prop = 0.75, strata = hwy)
+```
+
+-   `prop`: specifies the proportion to place into training
+
+-   `strata`: provides stratification by t he outcome variable
+
+```{r}
+mpg_training <- mpg_split %>% 
+  training()
+
+mpg_test <- mpg_split %>% 
+  testing()
+```
+
+## Exercises -  part 1
+
+> 1.  Creating training and test datasets
+
+In this exercise, you will create training and test datasets from the `home_sales` data. This data contains information on homes sold in the Seattle, Washington area between 2015 and 2016.
+
+```{r}
+# data
+home_sales <- readRDS('datasets/home_sales.rds')
+glimpse(home_sales)
+```
+
+**Outcome variable**: `selling_price`
+
+-   Create an `rsample` object, `home_split`, that contains the instructions for randomly splitting the `home_sales` data into a training and test dataset.
+
+-   Allocate 70% of the data into training and stratify the results by `selling_price`.
+
+-   Create a training dataset from `home_split` called `home_training`.
+
+-   Check the number of rows in the training and test datasets by passing them into the `nrow()` function.
+
+```{r}
+# Create a data split object
+home_split <- initial_split(home_sales, 
+                  prop = 0.7, 
+                  strata = selling_price)
+
+# Create the training data
+home_training <- home_split %>%
+ training()
+
+# Create the test data
+home_test <- home_split %>% 
+  testing()
+
+
+# Check number of rows in each dataset
+print(paste0("#Rows Train: ", nrow(home_training)))
+print(paste0("#Rows Test: ", nrow(home_test)))
+```
+
+> 2.  Distribution of outcome variables values
+
+Stratifying by the outcome variable when generating training and test datasets ensures that the outcome variable values have a similar range in both datasets.
+
+Since the original data is split at random, stratification avoids placing all the expensive homes in `home_sales` into the test dataset, for example. In this case, your model would most likely perform poorly because it was trained on less expensive homes.
+
+-   Calculate the minimum, maximum, mean, and standard deviation of the `selling_price` variable in `home_training`.
+
+```{=html}
+<!-- -->
+```
+-   Calculate the minimum, maximum, mean, and standard deviation of the `selling_price` variable in `home_test`.
+
+```{r}
+# Distribution of selling_price in training data
+home_training %>% 
+  summarize(min_sell_price = min(selling_price),
+            max_sell_price = max(selling_price),
+            mean_sell_price = mean(selling_price),
+            sd_sell_price = sd(selling_price))
+
+# Distribution of selling_price in test data
+home_test %>% 
+  summarize(min_sell_price = min(selling_price),
+            max_sell_price = max(selling_price),
+            mean_sell_price = mean(selling_price),
+            sd_sell_price = sd(selling_price))
+```
+
+-   The values are similar, insuring that we have a good stratification.
+
+# Linear regression with tidymodels
+
+## The parsnip package
+
+1.  Specify the model type
+    -   Linear regression or other
+2.  Specify engine
+    -   Different engines correspond to different underlying R packages
+3.  Specify the mode
+    -   Either regression or classification
+
+Example:
+
+```{r}
+# Training model
+lm_model <- linear_reg() %>% 
+  set_engine('lm') %>% 
+  set_mode('regression')
+
+lm_fit <- lm_model %>% 
+  fit(hwy ~ cty, data = mpg_training)
+
+tidy(lm_fit)
+
+# Prediction
+hwy_predictions <- lm_fit %>% 
+  predict(new_data = mpg_test)
+hwy_predictions
+
+# Adding predictions to the test dataset
+mpg_test_results <- mpg_test %>% 
+  select(hwy, cty) %>% 
+  bind_cols(hwy_predictions) 
+mpg_test_results
+
+```
+
+## Exercises - part 2
+
+> 3.  **Fitting a linear regression model**
+
+The `parsnip` package provides a unified syntax for the model fitting process in R.
+
+With `parsnip`, it is easy to define models using the various packages, or engines, that exist in the R ecosystem.
+
+In this exercise, you will define a `parsnip` linear regression object and train your model to predict `selling_price` using `home_age` and `sqft_living` as predictor variables from the `home_sales` data.
+
+-   Initialize a linear regression object, `linear_model`, with the appropriate `parsnip` function.
+
+-   Use the `lm` engine.
+
+-   Set the mode to `regression`.
+
+-   Train your model to predict `selling_price` using `home_age` and `sqft_living` as predictor variables from the `home_training` dataset.
+
+-   Print `lm_fit` to view the model information.
+
+-   Create a tibble, `home_predictions`, that contains the predicted selling prices of homes in the test dataset.
+
+-   Create a tibble with the `selling_price`, `home_age`, and `sqft_living` columns from the test dataset and the predicted home selling prices.
+
+```{r}
+# Initialize a linear regression object, linear_model
+linear_model <- linear_reg() %>% 
+  # Set the model engine
+  set_engine('lm') %>% 
+  # Set the model mode
+  set_mode('regression')
+
+# Fit the model using the training data
+lm_fit <- linear_model %>% 
+  fit(selling_price ~ home_age + sqft_living,
+      data = home_training)
+
+# Print lm_fit to view model information
+lm_fit
+
+# Predict selling_price
+home_predictions <- predict(lm_fit,
+                        new_data = home_test)
+
+# View predicted selling prices
+home_predictions
+
+# Combine test data with predictions
+home_test_results <- home_test %>% 
+  select(selling_price, home_age, sqft_living) %>% 
+  bind_cols(home_predictions)
+
+# View results
+home_test_results
+```
+
+# Evaluating model performance
+
+-    We're gonna use the table with results, like the table below, with the real outcome values and the predictions:
+
+```{r}
+mpg_test_results
+```
+
+## Root mean squared error (RMSE)
+
+Estimates the average prediction error
+
+```{r}
+mpg_test_results %>% 
+  rmse(truth = hwy, estimate = .pred)
+```
+
+## R squared metric
+
+-   Coefficient of determination
+
+-   Ranges from 0 to 1
+
+    -   Calculated with `rsq()` function from `yardstick`
+
+```{r}
+mpg_test_results %>% 
+  rsq(truth = hwy, estimate = .pred)
+```
+
+## Plotting R squared plots
+
+```{r}
+mpg_test_results %>% 
+  ggplot(aes(x = hwy, y = .pred)) +
+  geom_point() +
+  geom_abline(color = 'blue', linetype = 2) +
+  coord_obs_pred() + # axis in the same scale
+  labs(title = 'R-squared Plot',
+       y = 'Predicted Highway MPG',
+       x = 'Actual Highway MPG')
+```
+
+## Streamilining model fitting
+
+The `last_fit()` function:
+
+-   Takes a model specification, model formula, and data split object
+
+-   Performs the following:
+
+    1.  Creates training and test datasets
+    2.  Fits the model to the training data
+    3.  Calculates the metrics and predictions on the test data
+    4.  Returns an object with all results
+
+```{r}
+lm_last_fit <- lm_model %>% 
+  last_fit(hwy ~ cty, 
+           split = mpg_split)
+```
+
+## Collecting metrics
+
+```{r}
+lm_last_fit %>% 
+  collect_metrics()
+```
+
+## Collecting predictions
+
+```{r}
+lm_last_fit %>% 
+  collect_predictions()
+```
+
+## Exercises - part 3
+
+> 4.  **Model performance metrics**
+
+Evaluating model results is an important step in the modeling process. Model evaluation should be done on the test dataset in order to see how well a model will generalize to new datasets.
+
+In the previous exercise, you trained a linear regression model to predict `selling_price` using `home_age` and `sqft_living` as predictor variables. You then created the `home_test_results` tibble using your trained model on the `home_test` data.
+
+In this exercise, you will calculate the RMSE and R squared metrics using your results in `home_test_results`.
+
+-   Execute the first two lines of code which print the `home_test_results`. This tibble contains the actual and predicted home selling prices in the `home_test` dataset.
+
+-   Using `home_test_results`, calculate the RMSE and R squared metrics.
+
+```{r}
+# Print home_test_results
+home_test_results
+
+# Calculate the RMSE metric
+home_test_results %>% 
+  rmse(selling_price, .pred)
+
+# Calculate the R squared metric
+home_test_results %>% 
+  rsq(selling_price, .pred)
+```
+
+> 5.  **R squared plot**
+
+In the previous exercise, you got an R squared value of 0.651. The R squared metric ranges from 0 to 1, 0 being the worst and 1 the best.
+
+Calculating the R squared value is only the first step in studying your model's predictions.
+
+Making an R squared plot is extremely important because it will uncover potential problems with your model, such as non-linear patterns or regions where your model is either over or under-predicting the outcome variable.
+
+In this exercise, you will create an R squared plot of your model's performance.
+
+-   Create an R squared plot of your model's performance. The x-axis should have the actual selling price and the y-axis should have the predicted values.
+
+-   Use the appropriate functions to add the line y = x to your plot and standardize the range of both axes.
+
+```{r}
+# Create an R squared plot of model performance
+ggplot(home_test_results, aes(x = selling_price, y = .pred)) +
+  geom_point(alpha = 0.5) + 
+  geom_abline(color = 'blue', linetype = 2) +
+  coord_obs_pred() +
+  labs(x = 'Actual Home Selling Price', y = 'Predicted Selling Price')
+```
+
+> 6.  **Complete model fitting process with last_fit()**
+
+In this exercise, you will train and evaluate the performance of a linear regression model that predicts `selling_price` using all the predictors available in the `home_sales` tibble.
+
+This exercise will give you a chance to perform the entire model fitting process with `tidymodels`, from defining your model object to evaluating its performance on the test data.
+
+Earlier in the chapter, you created an `rsample` object called `home_split` by passing the `home_sales` tibble into `initial_split()`. The `home_split` object contains the instructions for randomly splitting `home_sales` into training and test sets.
+
+-   Use the `linear_reg()` function to define a linear regression model object. Use the `lm` engine.
+
+-   Train your linear regression object with the `last_fit()` function.
+
+-   In your model formula, use `selling_price` as the outcome variable and all other columns as predictor variables.
+
+-   Create a tibble with the model's predictions on the test data.
+
+-   Create an R square plot of the model's performance. The x-axis should have the actual selling price and the y-axis should have the predicted values.
+
+```{r}
+# Define a linear regression model
+linear_model <- linear_reg() %>% 
+  set_engine('lm') %>% 
+  set_mode('regression')
+
+# Train linear_model with last_fit()
+linear_fit <- linear_model %>% 
+  last_fit(selling_price ~ ., split = home_split)
+
+# Collect predictions and view results
+predictions_df <- linear_fit %>% collect_predictions()
+predictions_df
+
+# Make an R squared plot using predictions_df
+ggplot(predictions_df, aes(x = selling_price, y = .pred)) + 
+  geom_point(alpha = 0.5) + 
+  geom_abline(color = 'blue', linetype = 2) +
+  coord_obs_pred() +
+  labs(x = 'Actual Home Selling Price', y = 'Predicted Selling Price')
+
+# Collect metrics
+linear_fit %>% collect_metrics()
+```

@@ -15,6 +15,9 @@
 # Output files from R CMD build
 /*.tar.gz
 
+# Folders
+datasets/
+
 # Output files from R CMD check
 /*.Rcheck/
 
