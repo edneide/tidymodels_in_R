@@ -35,3 +35,185 @@ htmltools::img(src = knitr::image_uri("img/tidymodels.png"),
 library(tidyverse)
 library(tidymodels)
 ```
+
+# Classification models
+
+```{r}
+# data
+leads_df <- readRDS('datasets/leads_df.rds')
+glimpse(leads_df)
+```
+
+## Data resampling
+
+```{r}
+leads_split <- initial_split(leads_df,
+                             prop = 0.75,
+                             strata = purchased)
+
+leads_training <- leads_split %>% 
+  training()
+
+leads_test <- leads_split %>%
+  testing()
+
+```
+
+## Logistic regression model specification
+
+```{r}
+logistic_model <- logistic_reg() %>% 
+  set_engine('glm') %>% 
+  set_mode('classification')
+```
+
+## Model fitting
+
+```{r}
+logistic_fit <- logistic_model %>% 
+  fit(purchased ~ total_visits + total_time,
+      data = leads_training)
+```
+
+## Predicting outcome categories
+
+```{r}
+class_preds <- logistic_fit %>% 
+  predict(new_data = leads_test, 
+          type = 'class')
+
+class_preds
+```
+
+## Estimated probabilities 
+
+```{r}
+prob_preds <- logistic_fit %>% 
+  predict(new_data = leads_test,
+          type = 'prob')
+
+prob_preds
+```
+
+## Combining results
+
+```{r}
+leads_results <- leads_test %>% 
+  select(purchased) %>% 
+  bind_cols(class_preds, prob_preds)
+
+leads_results
+```
+
+# Exercises - part 1
+
+> 1.  **Data resampling**
+
+The first step in a machine learning project is to create training and test datasets for model fitting and evaluation. The test dataset provides an estimate of how your model will perform on new data and helps to guard against overfitting.
+
+You will be working with the `telecom_df` dataset which contains information on customers of a telecommunications company. The outcome variable is `canceled_service` and it records whether a customer canceled their contract with the company. The predictor variables contain information about customers' cell phone and Internet usage as well as their contract type and monthly charges.
+
+The `telecom_df` tibble has been loaded into your session.
+
+-   Create an `rsample` object, `telecom_split`, that contains the instructions for randomly splitting the `telecom_df` data into training and test datasets.
+
+    -   Allocate 75% of the data into training and stratify the results by `canceled_service`.
+
+-   Pass the `telecom_split` object to the appropriate `rsample` functions to create the training and test datasets.
+
+-   Check the number of rows in each datasets by passing them to the `nrow()` function.
+
+```{r}
+# data
+telecom_df <- readRDS('datasets/telecom_df.rds')
+glimpse(telecom_df)
+
+# Create data split object
+telecom_split <- initial_split(telecom_df, prop = 0.75,
+                     strata = canceled_service)
+
+# Create the training data
+telecom_training <- telecom_split %>% 
+  training()
+
+# Create the test data
+telecom_test <- telecom_split %>% 
+  testing()
+
+# Check the number of rows
+paste0("#Rows training: ", nrow(telecom_training))
+paste0("#Rows test: ", nrow(telecom_test))
+```
+
+# **Fitting a logistic regression model**
+
+In addition to regression models, the `parsnip` package also provides a general interface to classification models in R.
+
+In this exercise, you will define a `parsnip` logistic regression object and train your model to predict `canceled_service` using `avg_call_mins`, `avg_intl_mins`, and `monthly_charges` as predictor variables from the `telecom_df` data.
+
+-   Initialize a logistic regression object, `logistic_model`, with the appropriate `parsnip` function.
+
+-   Use the `'glm'` engine.
+
+-   Set the mode to `'classification'`.
+
+-   Print the `logistic_model` object to view its specification details.
+
+-   Train your model to predict `canceled_service` using `avg_call_mins`, `avg_intl_mins`, and `monthly_charges` as predictor variables from the `telecom_training` dataset.
+
+```{r}
+# Specify a logistic regression model
+logistic_model <- logistic_reg() %>% 
+  set_engine('glm') %>% 
+  set_mode('classification')
+
+# Print the model specification
+logistic_model
+```
+
+```{r}
+# Fit to training data
+logistic_fit <- logistic_model %>% 
+  fit(canceled_service ~ avg_call_mins + avg_intl_mins + monthly_charges, data = telecom_training)
+
+# Print model fit object
+logistic_fit
+```
+
+> 2.  **Combining test dataset results**
+
+Evaluating your model's performance on the test dataset gives insights into how well your model predicts on new data sources. These insights will help you communicate your model's value in solving problems or improving decision making.
+
+Before you can calculate classification metrics such as sensitivity or specificity, you must create a results tibble with the required columns for `yardstick` metric functions.
+
+In this exercise, you will use your trained model to predict the outcome variable in the `telecom_test` dataset and combine it with the true outcome values in the `canceled_service` column.
+
+-   Use your trained model and the `predict()` function to create a tibble, `class_preds`, with predicted outcome variable categories using the test dataset.
+
+```{r}
+# Predict outcome categories
+class_preds <- predict(logistic_fit, new_data = telecom_test,
+                       type = 'class') 
+class_preds
+```
+
+-   Now create a tibble, `prob_preds`, with the estimated probabilities for each category in the outcome variable using the test dataset.
+
+```{r}
+# Obtain estimated probabilities for each outcome value
+prob_preds <- predict(logistic_fit, new_data = telecom_test,
+                       type = 'prob') 
+prob_preds
+```
+
+-   Select the outcome variable from the `telecom_test` data.
+
+-   Add the `class_preds` and `prob_preds` tibbles along the column axis.
+
+```{r}
+telecom_results <- telecom_test %>% 
+  select(canceled_service) %>% 
+  bind_cols(class_preds, prob_preds)
+```
+
+# Assessing model fit 
