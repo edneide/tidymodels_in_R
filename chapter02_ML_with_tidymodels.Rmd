@@ -145,7 +145,7 @@ paste0("#Rows training: ", nrow(telecom_training))
 paste0("#Rows test: ", nrow(telecom_test))
 ```
 
-# **Fitting a logistic regression model**
+# Fitting a logistic regression model
 
 In addition to regression models, the `parsnip` package also provides a general interface to classification models in R.
 
@@ -217,3 +217,200 @@ telecom_results <- telecom_test %>%
 ```
 
 # Assessing model fit 
+
+In `tidymodels` outcome variables needs to be a factor
+
+-   First level is positive class
+
+-   Check order with `levels()`
+
+```{r}
+leads_df %>% glimpse()
+
+levels(leads_df$purchased)
+```
+
+## Confusion matrix
+
+```{r, echo=FALSE}
+# htmltools::img(src = knitr::image_uri("img/confusion_matrix.png"),
+#                width = "200",
+#                heigth = "200",
+#                align = 'center')
+```
+
+```{r, echo=FALSE}
+library(htmltools)
+# Replace "your_image.png" with the actual filename of your image
+img_path <- "img/confusion_matrix.png"
+
+# Create the image container with CSS styles to center it
+img_centered <- div(
+  style = "display: flex; justify-content: center;",
+  img(src = img_path, width = "350")
+)
+img_centered
+```
+
+**Correct predictions**
+
+-   True Positive (TP)
+
+-   True Negative (TN)
+
+**Classifcation Errors**
+
+-   False Positive (FP)
+
+-   False Negative (FN)
+
+```{r}
+conf_mat(leads_results,
+         truth = purchased,
+         estimate = .pred_class)
+```
+
+## Classification accuracy
+
+$$
+\dfrac{TP + TN}{TP + TN + FP + FN}
+$$
+
+```{r}
+accuracy(leads_results, 
+         truth = purchased,
+         estimate = .pred_class)
+```
+
+## Sensitivity
+
+In many cases accuracy is not the best metric.
+
+-   `leads_df` data
+
+    -   Classifying all as 'no' gives 64% accuracy
+
+**Sensitivity**
+
+Proportion of all positive cases that were correctly classified.
+
+-   Of custumers who did purchased, what proportion did our model predicted correctly?
+
+    -   Lower false negatives increase sensitivity.
+
+$$
+\dfrac{TP}{TP + FN}
+$$
+
+```{r}
+sens(leads_results, 
+         truth = purchased,
+         estimate = .pred_class)
+```
+
+## Specificity
+
+$$
+\dfrac{TN}{TN + FP}
+$$
+
+Is the proportion of all negative cases that were correctly classified.
+
+-   Of customers who did not purchased, what proportion did our model predicted correctly?
+
+    -    Lower false positive increases specificity
+
+$1 - \text{specificity}$ : False Positive Rate (FPR)
+
+-   Proportion of false positives among True negatives
+
+```{r}
+spec(leads_results, 
+         truth = purchased,
+         estimate = .pred_class)
+```
+
+## Creating a metric set
+
+```{r}
+custom_metrics <- metric_set(accuracy, sens, spec)
+
+custom_metrics(leads_results,
+               truth = purchased,
+               estimate = .pred_class)
+```
+
+## Many metrics
+
+-   `accuracy()`, `kap()`, `sens()`, `spec()`, `ppv()`, `npv(),` `mcc()`, `j_index()`, `bal_accuracy()`, `detection_prevalence()`, `precision()`, `recall()`, `f_means()`
+
+-   Pass the results of conf_mat() to summary() to calculate all
+
+-   Documentation: <https://yardstick.tidymodels.org/reference>
+
+# Exercises - part 1
+
+> 1.  **Evaluating performance with yardstick**
+
+In the previous exercise, you calculated classification metrics from a sample confusion matrix. The `yardstick` package was designed to automate this process.
+
+For classification models, `yardstick` functions require a tibble of model results as the first argument. This should include the actual outcome values, predicted outcome values, and estimated probabilities for each value of the outcome variable.
+
+In this exercise, you will use the results from your logistic regression model, `telecom_results`, to calculate performance metrics.
+
+-   Use the appropriate `yardstick` function to create a confusion matrix using the `telecom_results` tibble.
+
+    ```{r}
+    # Calculate the confusion matrix
+    conf_mat(telecom_results, truth = canceled_service,
+        estimate = .pred_class)
+    ```
+
+-   Calculate the **accuracy** of your model with the appropriate `yardstick` function.
+
+    ```{r}
+    # Calculate the accuracy
+    accuracy(telecom_results, truth = canceled_service,
+        estimate = .pred_class)
+    ```
+
+-   Calculate the **sensitivity** of your model.
+
+    ```{r}
+    # Calculate the sensitivity
+    sens(telecom_results, truth = canceled_service,
+        estimate = .pred_class)
+    ```
+
+-   Calculate the **specificity** of your model.
+
+    ```{r}
+    # Calculate the specificity
+    spec(telecom_results,
+                truth = canceled_service, 
+                estimate = .pred_class)
+    ```
+
+> **2. Creating custom metric sets**
+
+The `yardstick` package also provides the ability to create custom sets of model metrics. In cases where the cost of obtaining false negative errors is different from the cost of false positive errors, it may be important to examine a specific set of performance metrics.
+
+Instead of calculating accuracy, sensitivity, and specificity separately, you can create your own metric function that calculates all three at the same time.
+
+In this exercise, you will use the results from your logistic regression model, `telecom_results`, to calculate a custom set of performance metrics. You will also use a confusion matrix to calculate all available binary classification metrics in `tidymodels`all at once.
+
+```{r}
+# Create a custom metric function
+telecom_metrics <- metric_set(accuracy, sens, spec)
+
+# Calculate metrics using model results tibble
+telecom_metrics(telecom_results, truth = canceled_service,
+                estimate = .pred_class)
+
+# Create a confusion matrix
+conf_mat(telecom_results,
+         truth = canceled_service,
+         estimate = .pred_class) %>% 
+  # Pass to the summary() function
+  summary()
+```
