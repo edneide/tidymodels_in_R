@@ -17,6 +17,7 @@
 
 # Folders
 datasets/
+slides/
 
 # Output files from R CMD check
 /*.Rcheck/
