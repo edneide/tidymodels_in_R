@@ -414,3 +414,290 @@ conf_mat(telecom_results,
   # Pass to the summary() function
   summary()
 ```
+
+# Visualizing the confusion matrix
+
+## Plotting confusion matrix
+
+```{r}
+conf_mat(leads_results,
+         truth = purchased,
+         estimate = .pred_class) %>% 
+  autoplot(type = 'heatmap')
+```
+
+## Mosaic plot
+
+```{r}
+conf_mat(leads_results,
+         truth = purchased,
+         estimate = .pred_class) %>% 
+  autoplot(type = 'mosaic')
+```
+
+## Probability thresholds
+
+-   Default probability in binary classification is 0.5
+
+## Exploring performance across thresholds
+
+How does a classification model perform across a range of thresholds?
+
+-   Unique probabulity thresholds in the `.pred_yes` column of the dataset results
+
+-   Calculate specificity and sensitivity for each
+
+## Visualizing performance across thresholds
+
+-   ROC (Receiver operating characteristics) curve
+
+-   Used to visualize performance across probability thresholds
+
+-   Sensitivity vs (1 - specificity) across unique thresholds in test set results
+
+    -   Proportion correct among actual positives vs. proportion incorrect among actual negatives
+
+-   ROC AUC: Area Under the Curve
+
+-   Interpretation as letter for grades
+
+    -   A - [0.9, 1]
+
+    -   B - [0.8, 0.9)
+
+    -   C - [0.7, 0.8)
+
+    -   D - [0.6, 0.7)
+
+    -   F - [0.5 0.6)
+
+```{r}
+leads_results %>% 
+  roc_curve(truth = purchased, .pred_yes) %>% 
+  autoplot()
+```
+
+```{r}
+# Calculating AUC
+roc_auc(leads_results,
+        truth = purchased,
+        .pred_yes)
+```
+
+# Exercises
+
+> 1.  **Plotting the confusion matrix**
+
+Calculating performance metrics with the `yardstick` package provides insight into how well a classification model is performing on the test dataset. Most `yardstick` functions return a single number that summarizes classification performance.
+
+Many times, it is helpful to create visualizations of the confusion matrix to more easily communicate your results.
+
+In this exercise, you will make a heat map and mosaic plot of the confusion matrix from your logistic regression model on the `telecom_df` dataset.
+
+Your model results tibble, `telecom_results`, has been loaded into your session.
+
+-   Create a confusion matrix from your model results, `telecom_results`.
+
+-   Pass your confusion matrix to the appropriate function for creating heat maps and mosaic plots.
+
+```{r}
+# Create a confusion matrix
+conf_mat(telecom_results,
+         truth = canceled_service,
+         estimate = .pred_class) %>% 
+  # Create a heat map
+  autoplot(type = 'heatmap')
+```
+
+```{r}
+# Create a confusion matrix
+conf_mat(telecom_results,
+         truth = canceled_service,
+         estimate = .pred_class) %>% 
+  # Create a heat map
+  autoplot(type = 'mosaic')
+```
+
+> 2.  **ROC curves and area under the ROC curve**
+
+ROC curves are used to visualize the performance of a classification model across a range of probability thresholds. An ROC curve with the majority of points near the upper left corner of the plot indicates that a classification model is able to correctly predict both the positive and negative outcomes correctly across a wide range of probability thresholds.
+
+The area under this curve provides a letter grade summary of model performance.
+
+In this exercise, you will create an ROC curve from your logistic regression model results and calculate the area under the ROC curve with `yardstick`.
+
+Your model results tibble, `telecom_results` has been loaded into your session.
+
+-   Create a tibble, `threshold_df`, which contains the sensitivity and specificity of your classification model across the unique probability thresholds in `telecom_results`.
+
+-   Print `threshold_df` to view the results.
+
+-   Use `threshold_df` to to plot your model's ROC curve.
+
+-   Calculate the area under the ROC curve using the `telecom_results` tibble.
+
+```{r}
+# Calculate metrics across thresholds
+threshold_df <- telecom_results %>% 
+  roc_curve(truth = canceled_service, .pred_yes)
+
+# View results
+threshold_df
+
+# Plot ROC curve
+threshold_df %>% 
+  autoplot()
+
+# Calculate ROC AUC
+roc_auc(telecom_results,
+    truth = canceled_service, 
+    .pred_yes)
+```
+
+# **Automating the modeling workflow**
+
+```{r}
+leads_split <- initial_split(leads_df,
+                             strata = purchased)
+
+logistic_model <- logistic_reg() %>% 
+  set_engine('glm') %>% 
+  set_mode('classification')
+```
+
+```{r}
+logistic_last_fit <- logistic_model %>% 
+  last_fit(purchased ~ total_visits + total_time,
+           split = leads_split)
+
+logistic_last_fit %>% 
+  collect_metrics()
+```
+
+## Collecting predictions
+
+```{r}
+last_fit_results <- logistic_last_fit %>% 
+  collect_predictions()
+
+last_fit_results
+```
+
+## Custom metric sets 
+
+-   accuracy(), sens(), and spec()
+
+    -   Requires truth and estimate
+
+-   roc_auc()
+
+    -   Requires truth and column of estimated probabilities
+
+```{r}
+custom_metrics <- metric_set(accuracy, sens, spec, roc_auc)
+
+custom_metrics(last_fit_results,
+               truth = purchased,
+               estimate = .pred_class,
+               .pred_yes)
+```
+
+# Exercises
+
+> 1.  **Streamlining the modeling process**
+
+The `last_fit()` function is designed to streamline the modeling workflow in `tidymodels`. Instead of training your model on the training data and building a results tibble using the test data, `last_fit()` accomplishes this with one function.
+
+In this exercise, you will train the same logistic regression model as you fit in the previous exercises, except with the `last_fit()` function.
+
+Your data split object, `telecom_split`, and model specification, `logistic_model`, have been loaded into your session.
+
+-   Pass your `logistic_model` object into the `last_fit()` function.
+
+-   Predict `canceled_service` using `avg_call_mins`, `avg_intl_mins`, and `monthly_charges`.
+
+-   Display the performance metrics of your trained model, `telecom_last_fit`.
+
+```{r}
+# Train model with last_fit()
+telecom_last_fit <- logistic_model %>% 
+  last_fit(canceled_service ~ avg_call_mins + avg_intl_mins + monthly_charges,
+           split = telecom_split)
+
+# View test set metrics
+telecom_last_fit %>% 
+  collect_metrics()
+```
+
+> 2.  **Collecting predictions and creating custom metrics**
+
+Using the `last_fit()` modeling workflow also saves time in collecting model predictions. Instead of manually creating a tibble of model results, there are helper functions that extract this information automatically.
+
+In this exercise, you will use your trained model, `telecom_last_fit`, to create a tibble of model results on the test dataset as well as calculate custom performance metrics.
+
+Your trained model, `telecom_last_fit`, has been loaded into this session.
+
+-   Create a tibble, `last_fit_results`, that has the predictions from your `telecom_last_fit` model.
+
+-   Print the results to the console.
+
+-   Create a custom metric function, `last_fit_metrics`, using the `metric_set()` function.
+
+-   Include the accuracy, sensitivity, specificity, and area under the ROC curve in your metric function, in that order.
+
+-   Use the `last_fit_metrics()` function to calculate your custom metrics on the `last_fit_results` tibble.
+
+```{r}
+# Collect predictions
+last_fit_results <- telecom_last_fit %>% 
+  collect_predictions()
+
+# View results
+last_fit_results
+
+# Custom metrics function
+last_fit_metrics <- metric_set(accuracy, sens,
+                               spec, roc_auc)
+
+# Calculate metrics
+last_fit_metrics(last_fit_results,
+                 truth = canceled_service,
+                 estimate = .pred_class,
+                 .pred_yes)
+```
+
+> 3.  **Complete modeling workflow**
+
+In this exercise, you will use the `last_fit()` function to train a logistic regression model and evaluate its performance on the test data by assessing the ROC curve and the area under the ROC curve.
+
+Similar to previous exercises, you will predict `canceled_service` in the `telecom_df` data, but with an additional predictor variable to see if you can improve model performance.
+
+The `telecom_df` tibble, `telecom_split`, and `logistic_model` objects from the previous exercises have been loaded into your workspace. The `telecom_split` object contains the instructions for randomly splitting the `telecom_df` tibble into training and test sets. The `logistic_model` object is a `parsnip` specification of a logistic regression model.
+
+-   Train your model to predict `canceled_service` using `avg_call_mins`, `avg_intl_mins`, `monthly_charges`, and `months_with_company`.
+
+-   Collect and print the performance metrics on the test dataset.
+
+-   Collect your model predictions.
+
+-   Pass the predictions to the appropriate function to calculate sensitivity and specificity for different probability thresholds.
+
+-   Pass the results to the appropriate plotting function to create an ROC curve.
+
+```{r}
+# Train a logistic regression model
+logistic_fit <- logistic_model %>% 
+  last_fit(canceled_service ~ avg_call_mins + avg_intl_mins + monthly_charges + months_with_company, 
+           split = telecom_split)
+
+# Collect metrics
+logistic_fit %>% 
+  collect_metrics()
+
+# Collect model predictions
+logistic_fit %>% 
+  collect_predictions() %>% 
+  # Plot ROC curve
+  roc_curve(truth = canceled_service, .pred_yes) %>% 
+  autoplot()
+```
