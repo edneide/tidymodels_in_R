@@ -35,3 +35,86 @@ htmltools::img(src = knitr::image_uri("img/tidymodels.png"),
 library(tidyverse)
 library(tidymodels)
 ```
+
+# Feature Engineering
+
+We are going to use the `recipe()` package.
+
+[https://recipes.tidymodels.org/reference/index.html](ps://recipes.tidymodels.org/1)
+
+## Simple feature engineering pipeline
+
+```{r}
+# data
+leads_df <- readRDS('datasets/leads_df.rds')
+
+```
+
+## 
+Building a recipe object
+
+Let's apply the step_log on the total_time variable:
+
+```{r}
+leads_log_rec <- recipe(purchased ~ .,
+                        data = leads_df) %>% 
+  step_log(total_time, base = 10)
+
+leads_log_rec
+```
+
+## Explore variables roles and types
+
+```{r}
+leads_log_rec %>% 
+  summary()
+```
+
+## Training a recipe object
+
+```{r}
+# Split
+leads_training <- leads_df %>% 
+  initial_split(prop = 0.75) %>% 
+  training()
+
+leads_test <- leads_df %>% 
+  initial_split(prop = 0.75) %>% 
+  testing()
+```
+
+```{r}
+leads_log_rec_prep <- leads_log_rec %>% 
+  prep(training = leads_training)
+
+leads_log_rec_prep
+```
+
+## Transforming the training object
+
+-   By default, transformed data is retained by `prep()` function.
+
+-   Pass `NULL` to `new_data` to extract
+
+-   Return a tibble with transformed data
+
+```{r}
+leads_log_rec_prep %>% 
+  bake(new_data = NULL)
+```
+
+```{r}
+leads_log_rec_prep %>% 
+  bake(new_data = NULL)
+```
+
+## Transforming new data
+
+```{r}
+leads_log_rec_prep %>% 
+  bake(new_data = leads_test)
+```
+
+## Exercises - Part 1
+
+# Numeric predictors 
