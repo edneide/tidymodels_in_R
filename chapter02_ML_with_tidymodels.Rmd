@@ -1,5 +1,5 @@
 ---
-title: "Modeling with tidymodels in R - DataCamp"
+title: "Modeling with tidymodels in R - Chapter 02"
 author: "Edneide Ramalho"
 date: "`r format(Sys.time(), '%d/%m/%Y')`"
 output:
