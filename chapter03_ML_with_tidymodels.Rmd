@@ -117,4 +117,119 @@ leads_log_rec_prep %>%
 
 ## Exercises - Part 1
 
+```{r}
+# data 
+telecom_df <- readRDS('datasets/telecom_df.rds')
+glimpse(telecom_df)
+```
+
+> 1.  **Exploring recipe objects**
+
+The first step in feature engineering is to specify a `recipe` object with the `recipe()` function and add data preprocessing steps with one or more `step_*()` functions. Storing all of this information in a single `recipe` object makes it easier to manage complex feature engineering pipelines and transform new data sources.
+
+Use the R console to explore a `recipe` object named `telecom_rec`, which was specified using the `telecom_training` data from the previous chapter and the code below.
+
+```         
+telecom_rec <- recipe(canceled_service ~ .,
+                      data = telecom_df) %>% 
+  step_log(avg_call_mins, base = 10)
+```
+
+Both `telecom_training` and `telecom_rec` have been loaded into your session.
+
+How many numeric and nominal predictor variables are encoded in the `telecom_rec` object?
+
+```{r}
+telecom_rec <- recipe(canceled_service ~ .,
+                      data = telecom_df) %>% 
+  step_log(avg_call_mins, base = 10)
+
+telecom_rec
+
+telecom_rec %>% 
+  summary() %>% 
+  filter(role == 'predictor') %>% 
+  separate(type, into = c("type1", "type2", "type3")) %>% 
+  select(-type1) %>% 
+  group_by(type2) %>% 
+  summarise(n = n())
+
+```
+
+-   5 numerical variables and 3 categorical variables.
+
+> **2. Creating recipe objects**
+
+In the previous chapter, you fit a logistic regression model using a subset of the predictor variables from the `telecom_df` data. This dataset contains information on customers of a telecommunications company and the goal is predict whether they will cancel their service.
+
+In this exercise, you will use the `recipes` package to apply a log transformation to the `avg_call_mins` and `avg_intl_mins` variables in the telecommunications data. This will reduce the range of these variables and potentially make their distributions more symmetric, which may increase the accuracy of your logistic regression model.
+
+-   Create a `recipe` object, `telecom_log_rec`, that uses `canceled_service` as the outcome variable and all remaining columns in `telecom_training` as predictor variables.
+
+-   Add a step to the `recipe` object that will log transform `avg_call_mins` and `avg_intl_mins`.
+
+-   View the variable roles and data types that were assigned by the `recipe()` function in the `telecom_log_rec` object.
+
+    ```{r}
+    # Split data into training and test datasets
+    telecom_training <- initial_split(telecom_df,
+                                      prop = 0.75) %>% 
+      training()
+
+    telecom_test <- initial_split(telecom_df,
+                                      prop = 0.75) %>% 
+      testing()
+
+    # Specify feature engineering recipe
+    telecom_log_rec <- recipe(canceled_service ~ ., 
+                              data = telecom_training) %>%
+      # Add log transformation step
+      step_log(avg_call_mins, avg_intl_mins, base = 10)
+
+    # View variable roles and data types
+    telecom_log_rec %>%
+      summary()
+    ```
+
+> 3.  **Training a recipe object**
+
+In the previous exercise, you created a `recipe` object with instructions to apply a log transformation to the `avg_call_mins` and `avg_intl_mins` predictor variables in the telecommunications data.
+
+The next step in the feature engineering process is to train your `recipe` object using the training data. Then you will be able to apply your trained `recipe` to both the training and test datasets in order to prepare them for use in model fitting and model evaluation.
+
+Your `recipe` object, `telecom_log_rec`, and the `telecom_training` and `telecom_test` datasets have been loaded into your session.
+
+-   Apply your trained `recipe` to the test dataset.
+
+    ```{r}
+    # Train the telecom_log_rec object
+    telecom_log_rec_prep <- telecom_log_rec %>% 
+      prep(training = telecom_training)
+
+    # View results
+    telecom_log_rec_prep
+    ```
+
+```{=html}
+<!-- -->
+```
+-   Use your trained `recipe` to obtain the transformed training dataset.
+
+    ```{r}
+    # Apply to training data
+    telecom_log_rec_prep %>% 
+      bake(new_data = NULL)
+    ```
+
+```{=html}
+<!-- -->
+```
+-   Apply your trained `recipe` to the test dataset.
+
+```{r}
+# Apply to test data
+telecom_log_rec_prep %>% 
+  bake(new_data = telecom_test)
+```
+
 # Numeric predictors 
