@@ -233,3 +233,87 @@ telecom_log_rec_prep %>%
 ```
 
 # Numeric predictors 
+
+## Exercises - Part 2
+
+> 1.  **Discovering correlated predictors**
+
+Correlated predictor variables provide redundant information and can negatively impact the model fitting process. When two variables are highly correlated, their values change linearly with each other and hence provide the same information to your machine learning algorithms. This phenomenon is know as multicollinearity.
+
+Before beginning the model fitting process, it's important to explore your dataset to uncover these relationships and remove them in your feature engineering steps.
+
+In this exercise, you will explore the `telecom_training` dataset by creating a correlation matrix of all the numeric predictor variables.
+
+-   Select all of the numeric columns in the `telecom_training` data.
+
+-   Create a correlation matrix of the numeric columns of `telecom_training`.
+
+```{r}
+telecom_training %>% 
+  # Select numeric columns
+  select_if(is.numeric) %>% 
+  # Calculate correlation matrix
+  cor()
+```
+
+> **QUESTION**: Based on your correlation matrix, which variables have the largest correlation?
+>
+> **ANSWER**: `avg_data_gb` and `monthly_charges`.
+
+-   Create a scatter plot with `avg_data_gb` on the x-axis and `monthly_charges` on the y-axis.
+
+-   Add `Monthly Charges vs. Average Data Usage` to the title of your plot.
+
+```{r}
+telecom_training %>% 
+  # Select numeric columns
+  select_if(is.numeric) %>% 
+  # Calculate correlation matrix
+  cor()
+
+# Plot correlated predictors
+ggplot(telecom_training, aes(x = avg_data_gb, y = monthly_charges)) + 
+  # Add points
+  geom_point()  + 
+  # Add title
+  labs(title = 'Monthly Charges vs. Average Data Usage',
+       y = 'Monthly Charges ($)', x = 'Average Data Usage (GB)') 
+```
+
+> 2.  **Removing correlated predictors with recipes**
+
+Removing correlated predictor variables from your training and test datasets is an important feature engineering step to ensure your model fitting runs as smoothly as possible.
+
+Now that you have discovered that `monthly_charges` and `avg_data_gb` are highly correlated, you must add a correlation filter with `step_corr()` to your feature engineering pipeline for the telecommunications data.
+
+In this exercise, you will create a `recipe` object that removes correlated predictors from the telecommunications data.
+
+-   Create a `recipe` object, `telecom_cor_rec`, that sets the outcome variable to `canceled_service` and all remaining columns in `telecom_training` to predictor variables.
+
+-   Add a preprocessing step that removes highly correlated predictor variables using the `all_numeric()` selector function and a correlation threshold of 0.8.
+
+-   Train your `telecom_cor_rec` object using the `telecom_training` dataset.
+
+-   Use your trained `recipe` to obtain the transformed training dataset.
+
+-   Apply your trained `recipe` to the test dataset.
+
+```{r}
+# Specify a recipe object
+telecom_cor_rec <- recipe(canceled_service ~ .,
+                          data = telecom_training) %>%
+  # Remove correlated variables
+  step_corr(all_numeric(), threshold = 0.8)
+
+# Train the recipe
+telecom_cor_rec_prep <- telecom_cor_rec %>% 
+  prep(training = telecom_training)
+
+# Apply to training data
+telecom_cor_rec_prep %>% 
+  bake(new_data = NULL)
+
+# Apply to test data
+telecom_cor_rec_prep %>% 
+  bake(new_data = telecom_test)
+```
