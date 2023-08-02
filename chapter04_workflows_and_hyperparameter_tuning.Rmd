@@ -1,0 +1,716 @@
+---
+title: "Chapter 4 - Workflows and Hyperparameter Tuning"
+author: "Prof. Edneide Ramalho"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+output:
+  html_document:
+    highlight: textmate
+    logo: logo.png
+    theme: jou
+    number_sections: yes
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
+    df_print: paged
+  word_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("img/tidymodels.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px;',
+               width = "150",
+               heigth = "150")
+```
+
+# Imports
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+```
+
+# Machine Learning Workflows
+
+0.  Splitting data
+
+```{r}
+leads_df <- readRDS("~/Documents/repos/tidymodels_in_R/datasets/leads_df.rds")
+
+set.seed(12345)
+
+leads_split <- initial_split(leads_df,
+                             strata = purchased)
+
+# Training data
+leads_training <- leads_split %>% 
+  training()
+
+# Test data
+leads_test <- leads_split %>% 
+  testing()
+```
+
+1.  **Model specification**
+
+    ```{r}
+    dt_model <- decision_tree() %>%
+    	set_engine('rpart') %>%
+    	set_mode('classification')
+    ```
+
+2.  **Feature engineering recipe**
+
+```{r}
+leads_recipe <- recipe(purchased ~., 
+                       data = leads_training) %>% 
+  step_corr(all_numeric(), threshold = 0.9) %>% 
+  step_normalize(all_numeric()) %>% 
+  step_dummy(all_nominal(), -all_outcomes())
+
+leads_recipe
+```
+
+3.  **Combining models and recipes**
+
+```{r}
+leads_wkfl <- workflow() %>% 
+  add_model(dt_model) %>% 
+  add_recipe(leads_recipe)
+
+leads_wkfl
+```
+
+4.  **Model fitting with workflows**
+
+```{r}
+leads_wkfl_fit <- leads_wkfl %>% 
+  last_fit(split = leads_split)
+
+leads_wkfl_fit %>% 
+  collect_metrics()
+```
+
+5.  **Collecting predictions**
+
+```{r}
+leads_wkfl_preds <- leads_wkfl_fit %>% 
+  collect_predictions()
+
+leads_wkfl_preds
+```
+
+6.  **Exploring custom metrics**
+
+```{r}
+leads_metrics <- metric_set(roc_auc, sens, spec)
+
+leads_wkfl_preds %>% 
+  leads_metrics(truth = purchased,
+                estimate = .pred_class,
+                .pred_yes)
+```
+
+# Loan default dataset
+
+```{r}
+loan_df <- readRDS("~/Documents/repos/tidymodels_in_R/datasets/loan_df.rds")
+loan_df %>% glimpse()
+```
+
+# Exercises - part 1
+
+> **1. Exploring the loans dataset**
+
+The `workflows` package provides the ability to bundle `parsnip` models and `recipe` objects into a single modeling `workflow` object. This makes managing a machine learning project much easier and removes the need to keep track of multiple modeling objects.
+
+In this exercise, you will be working with the `loans_df` dataset, which contains financial information on consumer loans at a bank. The outcome variable in this data is `loan_default`.
+
+You will create a **decision tree model** object and specify a feature engineering pipeline for the loan data.
+
+-   Create a data split object, `loans_split`, using the `loans_df` tibble making sure to stratify by the outcome variable.
+
+-   Create the training dataset.
+
+-   Create the test dataset.
+
+```{r}
+# Create data split object
+loans_split <- initial_split(loan_df,
+                             strata = loan_default)
+
+# Building training data
+loans_training <- loans_split %>% 
+  training()
+
+# Building test data
+loans_test <- loans_split %>% 
+  testing()
+```
+
+-   Select the numeric columns from `loans_training` and create a correlation matrix.
+
+```{r}
+# Check for correlated predictors
+loans_training %>% 
+  # Select numeric columns
+  select_if(is.numeric) %>%
+  # Calculate correlation matrix
+  cor()
+```
+
+> **2. Specifying a model and recipe**
+
+Now that you have created your training and test datasets, the next step is to specify your model and feature engineering pipeline. These are the two components that are needed to create a `workflow` object for the model training process.
+
+In this exercise, you will define a decision tree model object with `decision_tree()` and a `recipe` specification with the `recipe()` function.
+
+-   Use the `decision_tree()` function to specify a decision tree classification model with the `rpart` engine.
+
+-   Create a `recipe` object with the `loans_training` data. Use all available predictor variables to predict the outcome, `loan_default`.
+
+-   Add a correlation filter to remove multicollinearity at a 0.85 threshold, normalize all numeric predictors, and create dummy variables for all nominal predictors.
+
+```{r}
+dt_model <- decision_tree() %>% 
+  # Specify the engine
+  set_engine('rpart') %>% 
+  # Specify the mode
+  set_mode('classification')
+
+# Build feature engineering pipeline
+loans_recipe <- recipe(loan_default ~.,
+                        data = loans_training) %>% 
+  # Correlation filter
+  step_corr(all_numeric(), threshold = 0.85) %>% 
+  # Normalize numeric predictors
+  step_normalize(all_numeric()) %>% 
+  # Create dummy variables
+  step_dummy(all_nominal(), -all_outcomes())
+
+loans_recipe
+```
+
+> **3. Creating workflows**
+
+`workflow` objects simplify the modeling process in `tidymodels`. With `workflows`, it's possible to train a `parsnip` model and `recipe` object at the same time.
+
+In this exercise, you will combine your decision tree model and feature engineering `recipe` into a single `workflow` object and perform model fitting and evaluation.
+
+-   Create a `workflow` object, `loans_dt_wkfl`, that combines your decision tree model and feature engineering `recipe`.
+
+-   Train your `workflow` with the `last_fit()` function.
+
+-   Display the performance metrics on the test dataset.
+
+```{r}
+# Create a workflow
+loans_dt_wkfl <- workflow() %>% 
+  # Include the model object
+  add_model(dt_model) %>% 
+  # Include the recipe object
+  add_recipe(loans_recipe)
+
+# View workflow specification
+loans_dt_wkfl
+
+# Train the workflow
+loans_dt_wkfl_fit <- loans_dt_wkfl %>% 
+  last_fit(split = loans_split)
+
+# Calculate performance metrics on test data
+loans_dt_wkfl_fit %>% 
+  collect_metrics()
+```
+
+# **Estimating performance with cross validation**
+
+1.  Creating cross validation folds
+
+```{r}
+set.seed(214)
+leads_fold <- vfold_cv(leads_training,
+                       v = 10,
+                       strata = purchased)
+
+leads_fold
+```
+
+2.  Model training with cross validation
+
+```{r}
+leads_rs_fit <- leads_wkfl %>% 
+  fit_resamples(resamples = leads_fold,
+                metrics = leads_metrics)
+
+leads_rs_fit %>% 
+  collect_metrics()
+```
+
+3.  DEtailed cross validation results
+
+```{r}
+rs_metrics <- leads_rs_fit %>% 
+  collect_metrics(summarize = FALSE)
+rs_metrics 
+```
+
+4.  Summarizing cross validation results
+
+```{r}
+rs_metrics %>% 
+  group_by(.metric) %>% 
+  summarize(min = min(.estimate),
+            median = median(.estimate),
+            max = max(.estimate),
+            mean = mean(.estimate),
+            sd = sd(.estimate)
+            )
+```
+
+# Exercises - part 2
+
+> 1.  **Measuring performance with cross validation**
+
+Cross validation is a method that uses training data to provide multiple estimates of model performance. When trying different model types on your data, it is important to study their performance profile to help decide which model type performs consistently well.
+
+In this exercise, you will perform cross validation with your decision tree model `workflow` to explore its performance.
+
+-   Create a cross validation object with 5 folds using the training data, making sure to stratify by the outcome variable.
+
+```{r}
+# Create cross validation folds
+set.seed(290)
+loans_folds <- vfold_cv(loans_training, v = 5,
+                   strata = loan_default)
+
+loans_folds
+```
+
+-   Create a custom metric function that includes the area under the ROC curve (ROC AUC), sensitivity, and specificity.
+
+```{r}
+# Create custom metrics function
+loans_metrics <- metric_set(roc_auc, sens, spec)
+```
+
+-   Use your decision tree `workflow` to perform cross validation using your folds and custom metric function.
+
+```{r}
+# Fit resamples
+loans_dt_rs <- loans_dt_wkfl %>% 
+  fit_resamples(resamples = loans_folds,
+                metrics = loans_metrics)
+```
+
+-   Explore the summarized results of your cross validation.
+
+```{r}
+# View performance metrics
+loans_dt_rs %>% 
+  collect_metrics()
+```
+
+# **Cross validation with logistic regression**
+
+Cross validation provides the ability to compare the performance profile of multiple model types. This is helpful in the early stages of modeling, when you are trying to determine which model type will perform best with your data.
+
+In this exercise, you will perform cross validation on the `loans_training` data using logistic regression and compare the results to your decision tree model.
+
+The `loans_folds` and `loans_metrics` objects from the previous exercise have been loaded into your session. Your feature engineering `recipe` from the previous section, `loans_recipe`, has also been loaded.
+
+-   Create a logistic regression model object with `parsnip` using the `glm` engine.
+
+-   Create a `workflow` that combines your logistic regression model and feature engineering `recipe` into one object.
+
+-   Use your logistic regression `workflow` to perform cross validation using your folds and custom metric function.
+
+-   Explore the summarized results of your cross validation.
+
+```{r}
+logistic_model <- logistic_reg() %>% 
+  # Specify the engine
+  set_engine('glm') %>% 
+  # Specify the mode
+  set_mode('classification')
+
+# Create workflow
+loans_logistic_wkfl <- workflow() %>% 
+  # Add model
+  add_model(logistic_model) %>% 
+  # Add recipe
+  add_recipe(loans_recipe)
+
+# Fit resamples
+loans_logistic_rs <- loans_logistic_wkfl %>% 
+  fit_resamples(resamples = loans_folds,
+                metrics = loans_metrics)
+
+# View performance metrics
+loans_logistic_rs %>% 
+  collect_metrics()
+```
+
+# **Comparing model performance profiles**
+
+The benefit of the `collect_metrics()` function is that it returns a tibble of cross validation results. This makes it easy to calculate custom summary statistics with the `dplyr` package.
+
+In this exercise, you will use `dplyr` to explore the cross validation results of your decision tree and logistic regression models.
+
+-   <div>
+
+    -   Collect the detailed cross validation results for your decision tree model.
+
+    -   Calculate the minimum, median, and maximum estimated metric values by metric type.
+
+    -   Collect the detailed cross validation results for your logistic regression model.
+
+    -   Calculate the minimum, median, and maximum estimated metric values by metric type.
+
+    </div>
+
+```{r}
+# Detailed cross validation results
+dt_rs_results <- loans_dt_rs %>% 
+  collect_metrics(summarize=FALSE)
+
+# Explore model performance for decision tree
+dt_performance <- dt_rs_results %>% 
+  group_by(.metric) %>% 
+  summarize(min = min(.estimate),
+            median = median(.estimate),
+            max = max(.estimate))
+dt_performance
+```
+
+```{r}
+# Detailed cross validation results
+logistic_rs_results <- loans_logistic_rs %>% 
+  collect_metrics(summarize = FALSE)
+
+# Explore model performance for logistic regression
+logistic_performance <- logistic_rs_results %>% 
+  group_by(.metric) %>% 
+  summarize(min = min(.estimate),
+            median = median(.estimate),
+            max = max(.estimate))
+
+logistic_performance
+```
+
+```{r}
+comparing_models <- dt_performance %>% 
+  bind_rows(logistic_performance) %>% 
+  mutate(model = c(rep('Decision Tree', 3), rep('Logistic Regression', 3)))
+
+comparing_models
+```
+
+# Hyperparameter tuning
+
+## Hyperparameters 
+
+Model parameters whose values are set prior to model training and control model complexity
+
+`parsnip` **decision tree**
+
+-   `cost_complexity`: penalizes large number of terminal nodes
+
+-   `three_depth`: Longest path from root to terminal node
+
+-   `min_n`: Minimum data points required in a node for further splitting
+
+Default values
+
+-   `cost_complexity`: 0.01
+
+-   `three_depth`: 30
+
+-   `min_n`: 20
+
+## Labeling hyperparameters for tuning
+
+```{r}
+dt_model <- decision_tree() %>% 
+  set_engine('rpart') %>% 
+  set_mode('classification')
+```
+
+-   Use the `tune()` function from `tune` package
+
+    -   To label hyperparameters for tuning, set them equal to `tune()` in parnsnip model `specification`
+
+    -   Creates model object with tuning parameters
+
+```{r}
+dt_tune_model <- decision_tree(cost_complexity = tune(),
+                               tree_depth = tune(),
+                               min_n = tune()) %>% 
+  set_engine('rpart') %>% 
+  set_mode('classification') 
+
+  dt_tune_model
+```
+
+## Creating a tuning workflow
+
+`workflow` objects can be easily updated
+
+```{r}
+leads_tune_wkfl <- leads_wkfl %>% 
+  update_model(dt_tune_model)
+
+leads_tune_wkfl
+```
+
+## Grid search
+
+Uses a gris combination of parameters.
+
+## Identifying hyperparameters
+
+```{r}
+parameters(dt_tune_model)
+```
+
+## Random grid
+
+```{r}
+set.seed(214)
+
+dt_grid <- grid_random(parameters(dt_tune_model),
+            size = 5)
+dt_grid
+```
+
+## Hyperparameter tuning with cross validation
+
+```{r}
+dt_tunning <- leads_tune_wkfl %>% 
+  tune_grid(resamples = leads_fold,
+            grid = dt_grid,
+            metrics = leads_metrics)
+
+dt_tunning
+```
+
+## Exploring tuning results
+
+```{r}
+dt_tunning %>% 
+  collect_metrics()
+```
+
+# Exercises - part 3
+
+> 1.  **Setting model hyperparameters**
+
+Hyperparameter tuning is a method for fine-tuning the performance of your models. In most cases, the default hyperparameters values of `parsnip` model objects will not be the optimal values for maximizing model performance.
+
+In this exercise, you will define a decision tree model with hyperparameters for tuning and create a tuning `workflow` object.
+
+Your decision tree `workflow` object, `loans_dt_wkfl`, has been loaded into your session.
+
+-   Create a `parsnip` decision tree model and set all three of its hyperparameters for tuning.
+
+-   Use the `rpart` engine.
+
+```{r}
+# Set tuning hyperparameters
+dt_tune_model <- decision_tree(cost_complexity = tune(),
+                               tree_depth = tune(),
+                               min_n = tune()) %>% 
+  # Specify engine
+  set_engine('rpart') %>% 
+  # Specify mode
+  set_mode('classification')
+
+# Create a tuning workflow
+loans_tune_wkfl <- loans_dt_wkfl %>% 
+  # Replace model
+  update_model(dt_tune_model)
+
+loans_tune_wkfl
+```
+
+> 2.  **Random grid search**
+
+The most common method of hyperparameter tuning is grid search. This method creates a tuning grid with unique combinations of hyperparameter values and uses cross validation to evaluate their performance. The goal of hyperparameter tuning is to find the optimal combination of values for maximizing model performance.
+
+In this exercise, you will create a random hyperparameter grid and tune your loans data decision tree model.
+
+-   Create a random grid of 5 hyperparameter value combinations using the hyperparameters of your `dt_tune_model` object.
+
+-   Use your `loans_tune_wkfl` object to perform hyperparameter tuning on your tuning grid with your cross validation folds and custom metrics function.
+
+-   Extract the summarized tuning results from your tuning object.
+
+    ```{r}
+    # Hyperparameter tuning with grid search
+    set.seed(214)
+    dt_grid <- grid_random(parameters(dt_tune_model),
+                           size = 5)
+
+    # Hyperparameter tuning
+    dt_tuning <- loans_tune_wkfl %>% 
+      tune_grid(resamples = loans_folds,
+                grid = dt_grid,
+                metrics = loans_metrics)
+
+    # View results
+    dt_tuning %>% 
+      collect_metrics()
+    ```
+
+# **Exploring tuning results**
+
+The `collect_metrics()` function is able to produce a detailed tibble of tuning results from a tuning object. Since this function returns a tibble, it works well with the `dplyr` package for further data exploration and analysis.
+
+In this exercise, you will explore your tuning results, `dt_tuning`, to gain further insights into your hyperparameter tuning.
+
+-   Extract the detailed tuning results from your `dt_tuning` object.
+
+    ```{r}
+    # Collect detailed tuning results
+    dt_tuning_results <- dt_tuning %>% 
+      collect_metrics(summarize = FALSE)
+
+    dt_tuning_results
+    ```
+
+```{=html}
+<!-- -->
+```
+-   Calculate the minimum, median, and maximum area under the ROC curve for each fold in the detailed tuning results.
+
+    ```{r}
+    # Explore detailed ROC AUC results for each fold
+    dt_tuning_results %>% 
+      filter(.metric == "roc_auc") %>% 
+      group_by(id) %>% 
+      summarize(min_roc_auc = min(.estimate),
+                median_roc_auc = median(.estimate),
+                max_roc_auc = max(.estimate))
+    ```
+
+# Selecting the best model
+
+-   The `show_best()` function displays the top `n` performing models based on average value of the `metric`.
+
+```{r}
+dt_tuning %>% 
+  show_best(metric = 'roc_auc', n = 5)
+```
+
+-   The `select_best()` returns a tibble with the best pdrforming model and hyperparameter values.
+
+```{r}
+best_dt_model <- dt_tuning %>% 
+  select_best(metric = 'roc_auc')
+
+best_dt_model
+```
+
+### Finalizing the workflow 
+
+```{r}
+final_leads_wkfl <- leads_tune_wkfl %>% 
+  finalize_workflow(best_dt_model)
+
+final_leads_wkfl
+```
+
+### Model fitting
+
+```{r}
+leads_final_fit <- final_leads_wkfl %>% 
+  last_fit(split = leads_split)
+
+leads_final_fit %>% 
+  collect_metrics()
+```
+
+**Behind the scenes**
+
+-   Training and test datasets created
+
+-   recipe trained and applied
+
+-   Tuned decision tree trained with entire training dataset
+
+-   Predictions and metrics on test data
+
+# Exercises - Part 4
+
+> 1.  **Finalizing a workflow**
+
+To incorporate hyperparameter tuning into your modeling process, an optimal hyperparameter combination must be selected based on the average value of a performance metric. Then you will be able to finalize your tuning workflow and fit your final model.
+
+In this exercise, you will explore the best performing models from your hyperparameter tuning and finalize your tuning `workflow` object.
+
+The `dt_tuning` and `loans_tune_wkfl` objects from your previous session have been loaded into your environment.
+
+-   Display the 5 best performing hyperparameter combinations from your tuning results based on the area under the ROC curve.
+
+-   Select the best hyperparameter combination from your tuning results based on the area under the ROC curve.
+
+```{=html}
+<!-- -->
+```
+-   Finalize your `loans_tune_wkfl` with the best hyperparameter combination.
+
+```{r}
+# Display 5 best performing models
+dt_tuning %>% 
+  show_best(metric = 'roc_auc', n = 5)
+
+# Select based on best performance
+best_dt_model <- dt_tuning %>% 
+  # Choose the best model based on roc_auc
+  select_best(metric = 'roc_auc')
+
+# Finalize your workflow
+final_loans_wkfl <- loans_tune_wkfl %>% 
+  finalize_workflow(best_dt_model)
+
+final_loans_wkfl
+```
+
+> 2.  **Training a finalized workflow**
+
+Congratulations on successfully tuning your decision tree model and finalizing your workflow! Your `final_loans_wkfl` object can now be used for model training and prediction on new data sources.
+
+In this last exercise, you will train your finalized `workflow` on the entire `loans_training` dataset and evaluate its performance on the `loans_test` data.
+
+The `final_loans_wkfl` and `loans_split` objects have been loaded into your session.
+
+-   Train your finalized `workflow` with the `last_fit()` function.
+
+-   Gather the performance metrics on the test data.
+
+-   Use your trained `workflow` object to create an ROC curve.
+
+```{r}
+# Train finalized decision tree workflow
+loans_final_fit <- final_loans_wkfl %>% 
+  last_fit(split = loans_split)
+
+# View performance metrics
+loans_final_fit %>% 
+  collect_metrics()
+
+# Create an ROC curve
+loans_final_fit %>% 
+  # Collect predictions
+  collect_predictions() %>%
+  # Calculate ROC curve metrics
+  roc_curve(truth = loan_default, .pred_yes) %>%
+  # Plot the ROC curve
+  autoplot()
+```
